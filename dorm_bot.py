@@ -10,7 +10,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # ===[설정 영역]==========================
-DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL") 
+DISCORD_WEBHOOK_URL = os.environ.get("dorm_WEBHOOK_URL") 
 MONITOR_WEBHOOK_URL = os.environ.get("MONITOR_WEBHOOK_URL") # 관리자 알림용
 
 # [Only local_test]

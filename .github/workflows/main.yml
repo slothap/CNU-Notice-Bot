@@ -1,18 +1,17 @@
-name: CNU Notice Bot
+name: CNU General Bots
 
 on:
   push:
   schedule:
     # 한국 시간: 09, 12, 15, 18, 21시 실행
-    # UTC 기준: 00, 03, 06, 09, 12시 (-9시간)
     - cron: '0 0,3,6,9,12 * * *'
-  workflow_dispatch:      # 수동 실행 버튼 유지
+  workflow_dispatch:      # 수동 실행 버튼
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
-    # 시간대 설정 (로그에 한국 시간 표시용)
+    # 시간대 설정
     env:
       TZ: 'Asia/Seoul'
 
@@ -30,18 +29,18 @@ jobs:
           pip install -r requirements.txt
 
       - name: 봇 3개 실행하기
-        # [핵심 수정] 파이썬 코드에서 os.environ.get("...")으로 찾는 이름들과 똑같이 맞춰줘야 합니다.
         env:
-          # 1. 관리자용 에러 알림 (공통)
+          # 1. 관리자용 에러 알림
           MONITOR_WEBHOOK_URL: ${{ secrets.MONITOR_WEBHOOK_URL }}
           
-          # 2. 학과 공지용 (cse_bot.py)
+          # 2. 학과 공지용 (cnu_bot.py)
           cse_WEBHOOK_URL: ${{ secrets.cse_WEBHOOK_URL }}
           
           # 3. 도서관 공지용 (library_bot.py)
           library_WEBHOOK_URL: ${{ secrets.library_WEBHOOK_URL }}
           
           # 4. 기숙사 공지용 (dorm_bot.py)
+          # [주의] 아까 등록한 시크릿 이름(DISCORD_WEBHOOK_URL)과 같아야 합니다.
           DISCORD_WEBHOOK_URL: ${{ secrets.dorm_WEBHOOK_URL }}
           
         run: |
@@ -59,10 +58,9 @@ jobs:
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
           
-          # 모든 json 파일(*.json)을 저장 목록에 추가
-          git add -f *.json
+          # 강제로 json 파일 담기 (-f 옵션 필수)
+          git add -f *.json || true
           
-          # 변경사항이 있을 때만 저장 (오류 방지)
           if git diff --staged --quiet; then
             echo "💤 변경된 내용이 없습니다."
           else

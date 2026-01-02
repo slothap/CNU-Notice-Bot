@@ -54,7 +54,7 @@ jobs:
           git config --global user.email "actions@github.com"
           
           # 1. 변경될 가능성이 있는 파일(with_latest.json)을 스테이지에 올립니다.
-          git add with_latest.json
+          git add -f with_data.json
           
           # 2. 실제로 변경사항이 있는지 확인하고 저장합니다.
           if git diff --staged --quiet; then

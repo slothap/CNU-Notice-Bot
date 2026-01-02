@@ -4,6 +4,7 @@ import os
 import time
 import json
 import re
+import urllib3
 import traceback
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry

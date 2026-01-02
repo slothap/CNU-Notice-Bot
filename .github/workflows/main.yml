@@ -6,7 +6,10 @@ on:
     # 한국 시간: 09, 12, 15, 18, 21시 실행
     - cron: '0 0,3,6,9,12 * * *'
   workflow_dispatch:      # 수동 실행 버튼
-
+  
+permissions:
+  contents: write
+  
 jobs:
   run-bot:
     runs-on: ubuntu-latest

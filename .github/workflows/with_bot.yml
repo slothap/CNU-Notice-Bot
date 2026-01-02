@@ -1,6 +1,7 @@
 name: CNU WITH Bot (Selenium)
 
 on:
+  push:
   schedule:
     # 한국 시간: 09시, 13시, 18시 실행
     # UTC 기준: 00시, 04시, 09시 (-9시간)

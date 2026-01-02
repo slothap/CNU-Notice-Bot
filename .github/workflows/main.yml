@@ -60,7 +60,7 @@ jobs:
           git config --global user.email "actions@github.com"
           
           # 모든 json 파일(*.json)을 저장 목록에 추가
-          git add *.json
+          git add -f *.json
           
           # 변경사항이 있을 때만 저장 (오류 방지)
           if git diff --staged --quiet; then

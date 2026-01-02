@@ -1,0 +1,65 @@
+name: CNU WITH Bot (Selenium)
+
+on:
+  schedule:
+    # 한국 시간: 09시, 13시, 18시 실행
+    # UTC 기준: 00시, 04시, 09시 (-9시간)
+    - cron: '0 0,4,9 * * *'
+  workflow_dispatch: # 수동 실행 버튼 활성화
+
+permissions:
+  contents: write # 봇이 json 파일을 수정해서 올릴 수 있는 권한
+
+jobs:
+  run-with-bot:
+    runs-on: ubuntu-latest
+    
+    # 시간대 설정 (로그에 한국 시간 표시)
+    env:
+      TZ: 'Asia/Seoul'
+
+    steps:
+      - name: 저장소 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: 파이썬 설정하기
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 크롬 브라우저 설치
+        uses: browser-actions/setup-chrome@latest
+
+      - name: 라이브러리 설치하기
+        run: |
+          pip install requests beautifulsoup4 selenium webdriver-manager
+
+      - name: WITH 봇 실행하기
+        env:
+          CNU_ID: ${{ secrets.CNU_ID }}
+          CNU_PW: ${{ secrets.CNU_PW }}
+          
+          # 학생 공지용 웹후크
+          with_WEBHOOK_URL: ${{ secrets.with_WEBHOOK_URL }}
+          
+          # 관리자 에러 알림용 웹후크
+          MONITOR_WEBHOOK_URL: ${{ secrets.MONITOR_WEBHOOK_URL }}
+        run: |
+          python with_bot.py
+
+      - name: 마지막 읽은 글 저장하기 (Auto Commit)
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "actions@github.com"
+          
+          # 1. 변경될 가능성이 있는 파일(with_latest.json)을 스테이지에 올립니다.
+          git add with_latest.json
+          
+          # 2. 실제로 변경사항이 있는지 확인하고 저장합니다.
+          if git diff --staged --quiet; then
+            echo "💤 변경된 내용이 없습니다."
+          else
+            echo "💾 새로운 글을 발견하여 기록을 업데이트합니다."
+            git commit -m "🤖 WITH 봇 데이터 갱신"
+            git push
+          fi

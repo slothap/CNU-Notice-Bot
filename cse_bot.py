@@ -24,22 +24,22 @@ TARGET_BOARDS = [
     {
         "id": "bachelor", 
         "name": "학사공지", 
-        "url": "https://computer.cnu.ac.kr/computer/notice/bachelor.do?articleLimit=30"
+        "url": "https://computer.cnu.ac.kr/computer/notice/bachelor.do?articleLimit=20"
     },
     {
         "id": "general", 
         "name": "교내일반소식", 
-        "url": "https://computer.cnu.ac.kr/computer/notice/notice.do?articleLimit=30" 
+        "url": "https://computer.cnu.ac.kr/computer/notice/notice.do?articleLimit=20" 
     },
     {
         "id": "job", 
         "name": "교외활동·인턴·취업", 
-        "url": "https://computer.cnu.ac.kr/computer/notice/job.do?articleLimit=30" 
+        "url": "https://computer.cnu.ac.kr/computer/notice/job.do?articleLimit=20" 
     },
     {
         "id": "project", 
         "name": "사업단소식", 
-        "url": "https://computer.cnu.ac.kr/computer/notice/project.do?articleLimit=30" 
+        "url": "https://computer.cnu.ac.kr/computer/notice/project.do?articleLimit=20" 
     }
 ]
 # 헤더 정보

@@ -118,7 +118,7 @@ def check_board(session, board_info, saved_data):
 
     try:
         # 1) 인터넷 접속
-        response = session.get(url, headers=HEADERS, timeout=10)
+        response = session.get(url, headers=HEADERS, verify=False, timeout=30)
         
         # 2) 한글 깨짐 방지
         response.encoding = 'utf-8'
@@ -204,6 +204,8 @@ def run_bot():
     print("\n" + "━" * 40)
     print(f"🤖 CSE 공지봇 실행: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
     try:
         saved_data = {}
 

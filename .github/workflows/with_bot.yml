@@ -4,7 +4,6 @@ on:
   push:
   schedule:
     # 한국 시간: 09시, 13시, 18시 실행
-    # UTC 기준: 00시, 04시, 09시 (-9시간)
     - cron: '0 0,4,9 * * *'
   workflow_dispatch: # 수동 실행 버튼 활성화
 
@@ -15,7 +14,7 @@ jobs:
   run-with-bot:
     runs-on: ubuntu-latest
     
-    # 시간대 설정 (로그에 한국 시간 표시)
+    # 시간대 설정
     env:
       TZ: 'Asia/Seoul'
 
@@ -53,10 +52,11 @@ jobs:
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
           
-          # 1. 변경될 가능성이 있는 파일(with_latest.json)을 스테이지에 올립니다.
+          # 1. 파일 강제 담기 (-f 필수)
+          # [중요] 파이썬 코드가 저장하는 파일명과 똑같아야 합니다!
           git add -f with_data.json
           
-          # 2. 실제로 변경사항이 있는지 확인하고 저장합니다.
+          # 2. 변경사항 확인 및 저장
           if git diff --staged --quiet; then
             echo "💤 변경된 내용이 없습니다."
           else

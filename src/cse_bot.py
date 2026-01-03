@@ -10,6 +10,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from dotenv import load_dotenv
 load_dotenv()
+from concurrent.futures import ThreadPoolExecutor
 
 # ===[설정 영역]==========================
 DISCORD_WEBHOOK_URL = os.environ.get("cse_WEBHOOK_URL")
@@ -120,7 +121,7 @@ def check_board(session, board_info, saved_data):
 
     try:
         # 1) 인터넷 접속
-        response = session.get(url, headers=HEADERS, verify=False, timeout=30)
+        response = session.get(url, headers=HEADERS, verify=False, timeout=(10, 20))
         
         # 2) 한글 깨짐 방지
         response.encoding = 'utf-8'
@@ -221,11 +222,11 @@ def run_bot():
         any_changes = False # 파일 수정 필요 여부
 
         # 게시판 목록(4개)를 반복
-        for board in TARGET_BOARDS:
-            if check_board(session, board, saved_data):
-                any_changes = True
-        
-        # 변경사항 있으면 파일에 저장
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(check_board, get_session(), board, saved_data) for board in TARGET_BOARDS]
+            for future in futures:
+                if future.result(): # 각 스레드의 실행 결과(True/False)를 확인
+                    any_changes = True    
         if any_changes:
             with open(DATA_FILE, "w", encoding="utf-8") as f:
                 json.dump(saved_data, f, ensure_ascii=False, indent=4)

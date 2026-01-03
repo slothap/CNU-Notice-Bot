@@ -119,8 +119,8 @@ def check_board(session, board_info, saved_data):
     print(f"● [{board_name}] 분석 중...")
 
     try:
-        # 이전 코드 스타일 그대로: timeout은 단일값 15초
-        response = session.get(url, headers=HEADERS, timeout=15)
+        # verify=False 추가 (SSL 인증서 검증 건너뜀)
+        response = session.get(url, headers=HEADERS, verify=False, timeout=10)
         
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')

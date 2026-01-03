@@ -8,6 +8,8 @@ import urllib3
 import traceback 
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from dotenv import load_dotenv
+load_dotenv()
 
 # ===[설정 영역]==========================
 DISCORD_WEBHOOK_URL = os.environ.get("dorm_WEBHOOK_URL") 
@@ -27,12 +29,12 @@ TARGET_BOARDS = [
     },
     {
         "id": "general",
-        "name": "기숙사 일반공지",
+        "name": "일반공지",
         "url": "https://dorm.cnu.ac.kr/_prog/_board/?code=sub03_0301&site_dvs_cd=kr&menu_dvs_cd=0302"
     },
     {
         "id": "work",
-        "name": "기숙사 작업공지",
+        "name": "작업공지",
         "url": "https://dorm.cnu.ac.kr/_prog/_board/?code=sub03_0302&site_dvs_cd=kr&menu_dvs_cd=0303"
     }
 ]
@@ -112,8 +114,7 @@ def check_board(session, board_info, saved_data):
         # 4) 게시글 줄(Row) 탐색
         rows = soup.select('tbody > tr')
         if not rows:
-            print(f"⚠ [{board_name}] 게시글을 찾을 수 없음 (HTML 구조 변경 가능성)")
-            return False
+            raise Exception(f"⚠ [{board_name}] 게시글(tr)을 찾을 수 없음 (HTML 구조 변경 의심)")
 
         # 5) 마지막으로 읽은 ID 불러오기
         last_id = saved_data.get(board_id, 0)

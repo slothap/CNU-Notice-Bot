@@ -8,6 +8,8 @@ import urllib3
 import traceback
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from dotenv import load_dotenv
+load_dotenv()
 
 # ===[설정 영역]==========================
 DISCORD_WEBHOOK_URL = os.environ.get("cse_WEBHOOK_URL")
@@ -84,7 +86,6 @@ def send_discord_batch_alert(category_name, new_notices):
     for notice in new_notices:
         icon = "▶" if notice['is_top'] else "▷" # 상단 고정 공지 / 일반 공지 구분
         message_content += f"{icon} [{notice['title']}](<{notice['link']}>)\n" # 메시지 추가
-    message_content += MENTION_ROLE
     try:
         # 메시지 전송
         requests.post(DISCORD_WEBHOOK_URL, json={"content": message_content})
@@ -104,7 +105,7 @@ def send_simple_error_log():
     
     try:
         requests.post(MONITOR_WEBHOOK_URL, json={"content": content})
-        print("✉ [관리자 알림 전송 완료]")
+        print("✉ 관리자 알림 전송 완료")
     except:
         print("⚠ 관리자 알림 전송 실패")
 
@@ -130,8 +131,7 @@ def check_board(session, board_info, saved_data):
         rows = soup.select('table.board-table tbody tr')
         
         if not rows: # 가져온 줄이 없는 경우
-            print(f"⚠ [{board_name}] 게시글을 찾을 수 없음 (HTML 구조 변경 가능성)")
-            return False
+            raise Exception(f"⚠ [{board_name}] 게시글(tr)을 찾을 수 없음 (HTML 구조 변경 의심)")
         
         # 5) 마지막으로 읽은 ID 가져오기
         last_id = saved_data.get(board_id, 0)

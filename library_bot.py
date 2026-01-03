@@ -8,6 +8,8 @@ import urllib3
 import traceback 
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from dotenv import load_dotenv
+load_dotenv()
 
 # ==========================================
 # [설정 영역]
@@ -61,7 +63,7 @@ def send_discord_message(new_notices):
         return
 
     count = len(new_notices)
-    message_content = f"### 📚 [일반공지] 새 글 {count}건\n\n"
+    message_content = f"### :books: [일반공지] 새 글 {count}건\n\n"
     
     for notice in new_notices:
         title = notice['title']
@@ -116,8 +118,8 @@ def check_library_notices():
         # 4. 게시글 줄(Row) 탐색
         rows = soup.select('tbody > tr')
         if not rows:
-            # 게시글을 못 찾은 것도 에러 상황일 수 있으므로 예외 발생시킴            print("⚠ 게시물을 찾을 수 없음")
-            return
+            # 게시글을 못 찾은 것도 에러 상황일 수 있으므로 예외 발생
+            raise Exception("⚠ [도서관 일반공지] 게시글(tr)을 찾을 수 없음 (HTML 구조 변경 의심)")
 
         new_notices = []
         max_id_in_this_scan = last_id

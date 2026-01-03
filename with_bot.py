@@ -5,9 +5,8 @@ import requests
 import re
 import traceback
 from datetime import datetime
-
-# 👇 [추가] 로컬에서 .env 파일을 읽기 위한 라이브러리
 from dotenv import load_dotenv
+load_dotenv()
 
 # ===[셀레니움 관련 라이브러리]===
 from selenium import webdriver
@@ -20,9 +19,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-
-# 1. 환경변수 로드 (.env 파일이 있으면 읽고, 없으면 건너뜀)
-load_dotenv()
 
 # ===[설정 영역]==========================
 USER_ID = os.environ.get("CNU_ID")

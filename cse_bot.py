@@ -88,7 +88,7 @@ def send_discord_batch_alert(category_name, new_notices):
 
     try:
         # 메시지 전송
-        message_content += <@&1456894753538052208>
+        message_content += "<@&1456894753538052208>"
         requests.post(DISCORD_WEBHOOK_URL, json={"content": message_content})
         print(f"✉ [전송 완료] {category_name} - {count}건")
     except Exception as e:

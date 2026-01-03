@@ -60,7 +60,7 @@ jobs:
             echo "💤 변경된 내용이 없습니다."
           else
             echo "💾 새로운 글을 발견하여 기록을 업데이트합니다."
-            git commit -m "🤖 WITH 봇 데이터 갱신"
+            git commit -m "Bot: WITH 봇 데이터 갱신"
             git pull --rebase origin main
             git push
           fi

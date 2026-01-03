@@ -43,26 +43,25 @@ jobs:
           library_WEBHOOK_URL: ${{ secrets.library_WEBHOOK_URL }}
           
           # 4. 기숙사 공지용 (dorm_bot.py)
-          # [주의] 아까 등록한 시크릿 이름(DISCORD_WEBHOOK_URL)과 같아야 합니다.
-          DISCORD_WEBHOOK_URL: ${{ secrets.dorm_WEBHOOK_URL }}
+          dorm_WEBHOOK_URL: ${{ secrets.dorm_WEBHOOK_URL }}
           
         run: |
           echo "🏫 학과 공지 확인 중..."
-          python cse_bot.py
+          python src/cse_bot.py
           
           echo "📚 도서관 공지 확인 중..."
-          python library_bot.py
+          python src/library_bot.py
           
           echo "🛌 기숙사 공지 확인 중..."
-          python dorm_bot.py
+          python src/dorm_bot.py
 
-      - name: 데이터 변경사항 저장하기 (모든 JSON 파일)
+      - name: 데이터 변경사항 저장하기 (data 폴더 내 JSON)
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
           
-          # 강제로 json 파일 담기 (-f 옵션 필수)
-          git add -f *.json || true
+          # data 폴더 안의 모든 json 파일 담기
+          git add -f data/*.json || true
           
           if git diff --staged --quiet; then
             echo "💤 변경된 내용이 없습니다."

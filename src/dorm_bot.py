@@ -14,12 +14,8 @@ load_dotenv()
 # ===[설정 영역]==========================
 DISCORD_WEBHOOK_URL = os.environ.get("dorm_WEBHOOK_URL") 
 MONITOR_WEBHOOK_URL = os.environ.get("MONITOR_WEBHOOK_URL") # 관리자 알림용
-# [Only local_test]
-# DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/..."
-# MONITOR_WEBHOOK_URL = "https://discord.com/api/webhooks/..."
-
-DATA_FILE = "dorm_data.json"
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(BASE_DIR, "..", "data", "dorm_data.json")
 # 게시판 목록 (List>Dic)
 TARGET_BOARDS = [
     {

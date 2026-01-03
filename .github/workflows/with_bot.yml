@@ -32,7 +32,7 @@ jobs:
 
       - name: 라이브러리 설치하기
         run: |
-          pip install requests beautifulsoup4 selenium webdriver-manager
+          pip install requests beautifulsoup4 selenium webdriver-manager python-dotenv
 
       - name: WITH 봇 실행하기
         env:
@@ -45,16 +45,15 @@ jobs:
           # 관리자 에러 알림용 웹후크
           MONITOR_WEBHOOK_URL: ${{ secrets.MONITOR_WEBHOOK_URL }}
         run: |
-          python with_bot.py
+          python src/with_bot.py
 
       - name: 마지막 읽은 글 저장하기 (Auto Commit)
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
           
-          # 1. 파일 강제 담기 (-f 필수)
-          # [중요] 파이썬 코드가 저장하는 파일명과 똑같아야 합니다!
-          git add -f with_data.json
+          # data 폴더 안의 with 데이터 파일 담기
+          git add -f data/with_data.json || true
           
           # 2. 변경사항 확인 및 저장
           if git diff --staged --quiet; then

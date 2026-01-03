@@ -22,7 +22,8 @@ MONITOR_WEBHOOK_URL = os.environ.get("MONITOR_WEBHOOK_URL")
 # DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/..."
 # MONITOR_WEBHOOK_URL = "https://discord.com/api/webhooks/..."
 URL = "https://library.cnu.ac.kr/bbs/list/1"
-DATA_FILE = "library_data.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(BASE_DIR, "..", "data", "library_data.json")
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'

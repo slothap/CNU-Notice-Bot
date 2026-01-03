@@ -7,6 +7,7 @@ import traceback
 from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
+import json as pyjson
 
 # ===[셀레니움 관련 라이브러리]===
 from selenium import webdriver
@@ -27,7 +28,8 @@ DISCORD_WEBHOOK_URL = os.environ.get("with_WEBHOOK_URL")
 MONITOR_WEBHOOK_URL = os.environ.get("MONITOR_WEBHOOK_URL")
 
 LIST_URL = "https://with.cnu.ac.kr/ptfol/imng/icmpNsbjtPgm/findIcmpNsbjtPgmList.do"
-DATA_FILE = "with_data.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(BASE_DIR, "..", "data", "with_data.json")
 # ==========================================
 
 def clean_text(text):
@@ -113,7 +115,6 @@ def post_to_discord_safe(content):
 # ===[메시지 디자인 수정 영역]===
 def create_message_content(info):
     """
-    요청하신 디자인:
     ** ▶ D-20 | 제목 **
     > [Sub Title] 외 N개 반 (멀티일 경우)
     > 신청: 날짜 | 운영: 날짜 | 정원: N명
@@ -243,7 +244,8 @@ def run_selenium_scraper():
             try:
                 wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "login_btn")))
                 print("☑ 로그인 성공")
-            except: print("⚠ 로그인 실패 가능성")
+            except:
+                raise Exception("⚠ 로그인 실패 (로그인 버튼이 사라지지 않음)")
         except Exception as e: raise e
 
         last_read_id = None
@@ -273,14 +275,17 @@ def run_selenium_scraper():
                 except: break
             
             items = driver.find_elements(By.CSS_SELECTOR, "li:has(div.cont_box)")
-            if not items: items = [li for li in driver.find_elements(By.CSS_SELECTOR, "li") if li.find_elements(By.CLASS_NAME, "cont_box")]
+            if not items: 
+                items = [li for li in driver.find_elements(By.CSS_SELECTOR, "li") if li.find_elements(By.CLASS_NAME, "cont_box")]
+            
+            if not items:
+                raise Exception(f"⚠ [{page}페이지] 게시글 목록(li)을 찾을 수 없음 (HTML 구조 변경 의심)")
 
             for item in items:
                 try:
                     a_tag = item.find_element(By.CSS_SELECTOR, "a.tit")
                     pid = ""
                     try:
-                        import json as pyjson
                         pid = pyjson.loads(a_tag.get_attribute("data-params")).get("encSddpbSeq")
                     except: pass
                     

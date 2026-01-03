@@ -124,6 +124,7 @@ def post_to_discord_safe(content):
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     try:
+        content += "<@&1456894900866912382>"
         response = session.post(DISCORD_WEBHOOK_URL, json={"content": content}, timeout=10)
         response.raise_for_status()
         print("✉ [전송 성공]")

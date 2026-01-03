@@ -67,5 +67,6 @@ jobs:
             echo "💤 변경된 내용이 없습니다."
           else
             git commit -m "Update all notice data"
+            git pull --rebase origin main
             git push
           fi

@@ -110,6 +110,7 @@ def post_to_discord_safe(content):
         session.post(DISCORD_WEBHOOK_URL, json={"content": content}, timeout=10)
         print("✉ [전송 성공]")
     except Exception as e:
+        send_simple_error_log("게시물 전송 실패")
         print(f"⚠ [전송 실패] {e}")
 
 # ===[메시지 디자인 수정 영역]===
@@ -194,11 +195,20 @@ def send_batch_messages(new_items):
     if full_message:
         post_to_discord_safe(full_message)
 
-def send_simple_error_log():
+def send_simple_error_log(message=None):
     if not MONITOR_WEBHOOK_URL: return 
+
+    now = time.strftime('%Y-%m-%d %H:%M:%S')
+    if message:
+        content = f"🚨 **[비교과 봇 오류]** \n{message}\n({now})"
+    else:
+        content = f"🚨 **[비교과 봇 오류]** \n{now}"
+    
     try:
-        requests.post(MONITOR_WEBHOOK_URL, json={"content": f"🚨 **[WITH 봇 오류]** \n{time.strftime('%Y-%m-%d %H:%M:%S')}"})
-    except: pass
+        requests.post(MONITOR_WEBHOOK_URL, json={"content": content})
+        print("✉ [관리자 알림 전송 완료]")
+    except:
+        print("⚠ 관리자 알림 전송 실패")
 
 def run_selenium_scraper():
     print("\n" + "━" * 40)
@@ -239,12 +249,15 @@ def run_selenium_scraper():
                         driver.switch_to.default_content()
                         break
                     except: continue
-                if not found: raise Exception("로그인 폼 못 찾음")
+                if not found: 
+                    send_simple_error_log("로그인 폼 관련 오류")
+                    raise Exception("로그인 폼 못 찾음")
             
             try:
                 wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "login_btn")))
                 print("☑ 로그인 성공")
             except:
+                send_simple_error_log("로그인 실패")
                 raise Exception("⚠ 로그인 실패 (로그인 버튼이 사라지지 않음)")
         except Exception as e: raise e
 
@@ -259,7 +272,9 @@ def run_selenium_scraper():
 
         driver.get(LIST_URL)
         try: wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "li div.cont_box")))
-        except: raise Exception("목록 로딩 실패")
+        except:
+            send_simple_error_log("목록 로딩 실패")
+            raise Exception("목록 로딩 실패")
 
         new_items = []
         stop = False
@@ -348,7 +363,7 @@ def run_selenium_scraper():
     except Exception as e:
         print(f"⚠ 에러: {e}")
         traceback.print_exc()
-        send_simple_error_log()
+        send_simple_error_log("프로그램 강제 종료")
     finally:
         if 'driver' in locals(): driver.quit()
 

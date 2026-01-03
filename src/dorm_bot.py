@@ -64,6 +64,7 @@ def send_discord_batch_alert(category_name, new_notices):
     
     if not DISCORD_WEBHOOK_URL:
         print("⚠ 웹후크 URL이 없음")
+        send_simple_error_log("웹후크 URL이 없음")
         return
 
     count = len(new_notices)
@@ -77,17 +78,20 @@ def send_discord_batch_alert(category_name, new_notices):
         print(f"✉ [전송 완료] {category_name} - {count}건")
     except Exception as e:
         print(f"⚠ [전송 실패] {e}")
+        send_simple_error_log("공지 전송 실패")
 
 # 관리자 함수
-def send_simple_error_log():
+def send_simple_error_log(message=None):
     if not MONITOR_WEBHOOK_URL: return 
 
     now = time.strftime('%Y-%m-%d %H:%M:%S')
-    content = f"🚨 **[기숙사 봇 오류 발생]** \n{now}"
-    
+    if message:
+        content = f"🚨 **[기숙사 봇 오류]** \n{message}\n({now})"
+    else:
+        content = f"🚨 **[기숙사 봇 오류]** \n{now}"
     try:
         requests.post(MONITOR_WEBHOOK_URL, json={"content": content})
-        print("✉ [관리자 알림 전송 완료]")
+        print("✉ 관리자 알림 전송 완료")
     except:
         print("⚠ 관리자 알림 전송 실패")
 
@@ -110,6 +114,7 @@ def check_board(session, board_info, saved_data):
         # 4) 게시글 줄(Row) 탐색
         rows = soup.select('tbody > tr')
         if not rows:
+            send_simple_error_log("게시글(tr)을 찾을 수 없음")
             raise Exception(f"⚠ [{board_name}] 게시글(tr)을 찾을 수 없음 (HTML 구조 변경 의심)")
 
         # 5) 마지막으로 읽은 ID 불러오기
@@ -170,8 +175,8 @@ def check_board(session, board_info, saved_data):
         return False
 
     except Exception as e:
-        print(f"⚠ [{board_name}] 에러: {e}")
-        return False
+        print(f"⚠ [{board_name}] 접속/파싱 실패: {e}")
+        send_simple_error_log(f"{board_name}-접속/파싱 실패")
 
 
 # ===[MAIN]===
@@ -207,7 +212,7 @@ def run_bot():
     except Exception as e:
         print(f"⚠ 치명적인 오류 발생: {e}")
         traceback.print_exc()
-        send_simple_error_log()
+        send_simple_error_log("프로그램 강제 종료")
 
 if __name__ == "__main__":
     run_bot()

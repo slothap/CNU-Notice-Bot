@@ -71,6 +71,7 @@ def send_discord_batch_alert(category_name, new_notices):
 
     # 웹후크 URL 존재 확인
     if not DISCORD_WEBHOOK_URL:
+        send_simple_error_log("웹후크 URL이 없음")
         print("⚠ 웹후크 URL이 없음")
         return
     
@@ -87,17 +88,21 @@ def send_discord_batch_alert(category_name, new_notices):
         requests.post(DISCORD_WEBHOOK_URL, json={"content": message_content})
         print(f"✉ [전송 완료] {category_name} - {count}건")
     except Exception as e:
+        send_simple_error_log("공지 전송 실패")
         print(f"⚠ [전송 실패] {e}")
 
 # 관리자 함수
-def send_simple_error_log():
+def send_simple_error_log(message=None):
     """
     [관리자용] 에러 발생 사실만 간단하게 알림
     """
     if not MONITOR_WEBHOOK_URL: return 
 
     now = time.strftime('%Y-%m-%d %H:%M:%S')
-    content = f"🚨 **[CSE 공지봇 오류 발생]** \n{now}"
+    if message:
+        content = f"🚨 **[CSE 봇 오류]** \n{message}\n({now})"
+    else:
+        content = f"🚨 **[CSE 봇 오류]** \n{now}"
     
     try:
         requests.post(MONITOR_WEBHOOK_URL, json={"content": content})
@@ -127,8 +132,9 @@ def check_board(session, board_info, saved_data):
         rows = soup.select('table.board-table tbody tr')
         
         if not rows: # 가져온 줄이 없는 경우
+            send_simple_error_log("게시글(tr)을 찾을 수 없음")
             raise Exception(f"⚠ [{board_name}] 게시글(tr)을 찾을 수 없음 (HTML 구조 변경 의심)")
-        
+            
         # 5) 마지막으로 읽은 ID 가져오기
         last_id = saved_data.get(board_id, 0)
         
@@ -189,10 +195,10 @@ def check_board(session, board_info, saved_data):
             saved_data[board_id] = max_id # 데이터 맵 저장
             return True
         
-        return False # 변경 사항 X
-
     except Exception as e:
-        print(f"⚠ [{board_name}] 에러: {e}")
+        error_msg = f"⚠ [{board_name}] 접속/파싱 실패: {e}"
+        print(f"{error_msg}")
+        send_simple_error_log(f"{board_name}-접속/파싱 실패")
         return False
 
 # ===[MAIN]===
@@ -231,7 +237,7 @@ def run_bot():
     except Exception as e:
         print(f"⚠ 치명적인 오류 발생: {e}")
         traceback.print_exc()
-        send_simple_error_log()
+        send_simple_error_log("프로그램 강제 종료")
 
 if __name__ == "__main__":
     run_bot()

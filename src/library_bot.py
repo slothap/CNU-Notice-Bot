@@ -61,6 +61,7 @@ def send_discord_message(new_notices):
 
     if not DISCORD_WEBHOOK_URL:
         print("⚠ 웹후크 URL이 없음")
+        send_simple_error_log("웹후크 URL이 없음")
         return
 
     count = len(new_notices)
@@ -76,16 +77,18 @@ def send_discord_message(new_notices):
         requests.post(DISCORD_WEBHOOK_URL, json={"content": message_content})
         print(f"✉ [전송 완료] 도서관 공지 {count}건")
     except Exception as e:
+        send_simple_error_log("공지 전송 실패")
         print(f"⚠ [전송 실패] {e}")
 
 # 관리자 심플 알림 함수
-def send_simple_error_log():
+def send_simple_error_log(message=None):
     if not MONITOR_WEBHOOK_URL: return 
 
     now = time.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # 심플한 메시지 내용
-    content = f"🚨 **[도서관 봇 오류 발생]** \n 시간: {now}"
+    if message:
+        content = f"🚨 **[도서관 봇 오류]** \n{message}\n({now})"
+    else:
+        content = f"🚨 **[도서관 봇 오류]** \n{now}"
     
     try:
         requests.post(MONITOR_WEBHOOK_URL, json={"content": content})
@@ -120,6 +123,7 @@ def check_library_notices():
         rows = soup.select('tbody > tr')
         if not rows:
             # 게시글을 못 찾은 것도 에러 상황일 수 있으므로 예외 발생
+            send_simple_error_log("게시글(tr)을 찾을 수 없음")
             raise Exception("⚠ [도서관 일반공지] 게시글(tr)을 찾을 수 없음 (HTML 구조 변경 의심)")
 
         new_notices = []
@@ -172,12 +176,8 @@ def check_library_notices():
     # 에러 발생 시 처리
     except Exception as e:
         print(f"⚠ 치명적인 오류 발생: {e}")
-        
-        # 1. 깃허브 로그용 상세 에러 출력
         traceback.print_exc()
-        
-        # 2. 관리자에게 심플 알림 전송
-        send_simple_error_log()
+        send_simple_error_log("프로그램 강제 종료")
 
 if __name__ == "__main__":
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

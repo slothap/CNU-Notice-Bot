@@ -18,57 +18,45 @@ MONITOR_WEBHOOK_URL = os.environ.get("MONITOR_WEBHOOK_URL")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "..", "data", "cse_data.json")
 
-# 게시판 목록
+# 게시판 목록 (이전 설정 그대로)
 TARGET_BOARDS = [
     {
         "id": "bachelor", 
         "name": "학사공지", 
-        "url": "https://computer.cnu.ac.kr/computer/notice/bachelor.do?articleLimit=20"
+        "url": "https://computer.cnu.ac.kr/computer/notice/bachelor.do?articleLimit=30"
     },
     {
         "id": "general", 
         "name": "교내일반소식", 
-        "url": "https://computer.cnu.ac.kr/computer/notice/notice.do?articleLimit=20" 
+        "url": "https://computer.cnu.ac.kr/computer/notice/notice.do?articleLimit=30" 
     },
     {
         "id": "job", 
         "name": "교외활동·인턴·취업", 
-        "url": "https://computer.cnu.ac.kr/computer/notice/job.do?articleLimit=20" 
+        "url": "https://computer.cnu.ac.kr/computer/notice/job.do?articleLimit=30" 
     },
     {
         "id": "project", 
         "name": "사업단소식", 
-        "url": "https://computer.cnu.ac.kr/computer/notice/project.do?articleLimit=20" 
+        "url": "https://computer.cnu.ac.kr/computer/notice/project.do?articleLimit=30" 
     }
 ]
 
+# 헤더 정보
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Connection': 'keep-alive',
-    'Referer': 'https://computer.cnu.ac.kr/'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 # ==========================================
 
 
 # ===[세션 생성기]===
 def get_session():
-    """재시도 로직이 있는 세션 생성"""
+    """Retry 가능한 세션 생성"""
     session = requests.Session()
-    
-    retry = Retry(
-        total=3,  # 재시도 3회
-        backoff_factor=2,  # 2초, 4초, 8초 대기
-        status_forcelist=[500, 502, 503, 504, 429],
-        raise_on_status=False
-    )
-    
+    retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
     adapter = HTTPAdapter(max_retries=retry)
     session.mount('http://', adapter)
     session.mount('https://', adapter)
-    
     return session 
 
 
@@ -88,8 +76,7 @@ def send_discord_batch_alert(category_name, new_notices):
         return
 
     if not DISCORD_WEBHOOK_URL:
-        send_simple_error_log("웹훅 URL이 없음")
-        print("⚠ 웹훅 URL이 없음")
+        print("⚠ 웹후크 URL이 없음")
         return
     
     count = len(new_notices)
@@ -98,63 +85,51 @@ def send_discord_batch_alert(category_name, new_notices):
     for notice in new_notices:
         icon = "▶" if notice['is_top'] else "▷"
         message_content += f"{icon} [{notice['title']}](<{notice['link']}>)\n"
-    
+
     try:
         requests.post(DISCORD_WEBHOOK_URL, json={"content": message_content}, timeout=5)
         print(f"✉ [전송 완료] {category_name} - {count}건")
     except Exception as e:
-        send_simple_error_log("공지 전송 실패")
         print(f"⚠ [전송 실패] {e}")
 
 
 # ===[관리자 알림]===
-def send_simple_error_log(message=None):
-    """[관리자용] 에러 발생 알림"""
+def send_simple_error_log():
+    """[관리자용] 에러 발생 사실만 간단하게 알림"""
     if not MONITOR_WEBHOOK_URL:
         return 
 
     now = time.strftime('%Y-%m-%d %H:%M:%S')
-    if message:
-        content = f"🚨 **[CSE 봇 오류]** \n{message}\n({now})"
-    else:
-        content = f"🚨 **[CSE 봇 오류]** \n{now}"
+    content = f"🚨 **[CSE 공지봇 오류 발생]** \n{now}"
     
     try:
         requests.post(MONITOR_WEBHOOK_URL, json={"content": content}, timeout=5)
-        print("✉ 관리자 알림 전송 완료")
+        print("✉ [관리자 알림 전송 완료]")
     except:
         print("⚠ 관리자 알림 전송 실패")
 
 
 # ===[게시판 검사]===
-def check_board(session, board_info, saved_data, attempt=1, max_attempts=2):
-    """개별 게시판 확인 및 새 글 감지 (재시도 로직 포함)"""
+def check_board(session, board_info, saved_data):
+    """개별 게시판 확인 및 새 글 감지"""
     board_id = board_info["id"]
     board_name = board_info["name"]
     url = board_info["url"]
 
-    print(f"● [{board_name}] 분석 중... (시도 {attempt}/{max_attempts})")
+    print(f"● [{board_name}] 분석 중...")
 
     try:
-        # 타임아웃: 연결 20초, 읽기 30초 (느린 서버 대응)
-        response = session.get(
-            url, 
-            headers=HEADERS, 
-            verify=False, 
-            timeout=(20, 30)
-        )
-        
-        # 응답 상태 확인
-        if response.status_code != 200:
-            raise Exception(f"HTTP {response.status_code}")
+        # 이전 코드 스타일 그대로: timeout은 단일값 15초
+        response = session.get(url, headers=HEADERS, timeout=15)
         
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')
         rows = soup.select('table.board-table tbody tr')
         
         if not rows:
-            raise Exception("게시글(tr)을 찾을 수 없음")
-            
+            print(f"⚠ [{board_name}] 게시글을 찾을 수 없음 (HTML 구조 변경 가능성)")
+            return False
+        
         last_id = saved_data.get(board_id, 0)
         new_notices = []
         max_id = last_id
@@ -194,50 +169,21 @@ def check_board(session, board_info, saved_data, attempt=1, max_attempts=2):
 
         # 최초 실행 처리
         if last_id == 0 and max_id > 0:
-            print(f"  ☀ 최초 실행 - 기준점(ID: {max_id})만 설정")
+            print(f"☐ [{board_name}] 최초 실행 - 기준점(ID: {max_id})만 설정, 전송 X")
             saved_data[board_id] = max_id
             return True
         
-        # 새 글 처리
+        # 새 글이 있으면 처리
         if new_notices:
             new_notices.sort(key=lambda x: x['id'])
             send_discord_batch_alert(board_name, new_notices)
             saved_data[board_id] = max_id
             return True
         
-        print("  ☐ 새 글 없음")
         return False
-        
-    except requests.exceptions.Timeout:
-        print("  ⏱ 타임아웃 (서버 응답 지연)")
-        
-        # 재시도 로직
-        if attempt < max_attempts:
-            print(f"  ☐ 5초 후 재시도...")
-            time.sleep(5)
-            return check_board(session, board_info, saved_data, attempt + 1, max_attempts)
-        else:
-            print(f"  ☒ 최대 재시도 횟수 초과")
-            send_simple_error_log(f"{board_name}-타임아웃 (GitHub Actions 차단 의심)")
-            return False
-    
-    except requests.exceptions.ConnectionError as e:
-        print(f"  ⚠ 연결 오류: {str(e)[:80]}")
-        
-        # 재시도 로직
-        if attempt < max_attempts:
-            print(f"  ☐ 5초 후 재시도...")
-            time.sleep(5)
-            return check_board(session, board_info, saved_data, attempt + 1, max_attempts)
-        else:
-            print(f"  ⚠ 연결 실패 - GitHub Actions IP 차단 가능성 높음")
-            send_simple_error_log(f"{board_name}-연결 차단 (학교 서버 IP 필터링)")
-            return False
-        
+
     except Exception as e:
-        error_msg = f"  ⚠ 오류: {str(e)[:80]}"
-        print(error_msg)
-        send_simple_error_log(f"{board_name}-{str(e)[:50]}")
+        print(f"⚠ [{board_name}] 에러: {e}")
         return False
 
 
@@ -246,10 +192,10 @@ def run_bot():
     """메인 실행 함수"""
     print("\n" + "━" * 40)
     print(f"🤖 CSE 공지봇 실행: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"☐ 실행 환경: {'GitHub Actions' if os.getenv('GITHUB_ACTIONS') else '로컬'}")
     
+    # SSL 경고 무시
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    
+
     try:
         saved_data = {}
 
@@ -263,45 +209,24 @@ def run_bot():
 
         session = get_session()
         any_changes = False
-        success_count = 0
-        fail_count = 0
-        
-        print("☐ 게시판 순차 확인 중...\n")
-        
-        for i, board in enumerate(TARGET_BOARDS, 1):
-            result = check_board(session, board, saved_data)
-            
-            if result:
+
+        # 게시판 목록 반복
+        for board in TARGET_BOARDS:
+            if check_board(session, board, saved_data):
                 any_changes = True
-                success_count += 1
-            else:
-                # 결과가 False여도 오류인지 새 글이 없는지 구분 필요
-                fail_count += 1
-            
-            # 마지막 게시판이 아니면 3초 대기
-            if i < len(TARGET_BOARDS):
-                time.sleep(3)
         
-        # 결과 요약
-        print(f"\n결과: 성공 {success_count}개, 실패/변동없음 {fail_count}개")
-        
-        # 모든 게시판 실패 시 경고
-        if fail_count == len(TARGET_BOARDS):
-            print("⚠ 모든 게시판 접속 실패 - GitHub Actions IP 차단 의심")
-            send_simple_error_log("전체 게시판 접속 실패 - IP 차단 의심")
-        
-        # 데이터 저장
+        # 변경사항 있으면 저장
         if any_changes:
             with open(DATA_FILE, "w", encoding="utf-8") as f:
                 json.dump(saved_data, f, ensure_ascii=False, indent=4)
             print("☑ 데이터 저장 완료")
         else:
-            print("☑ 변동 사항 없음")
+            print("☒ 변동 사항 없음")
 
     except Exception as e:
-        print(f"\n⚠ 치명적인 오류: {e}")
+        print(f"⚠ 치명적인 오류 발생: {e}")
         traceback.print_exc()
-        send_simple_error_log("프로그램 강제 종료")
+        send_simple_error_log()
 
 
 if __name__ == "__main__":

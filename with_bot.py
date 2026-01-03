@@ -6,7 +6,10 @@ import re
 import traceback
 from datetime import datetime
 
-# ===[셀레니움(Selenium) 관련 라이브러리]===
+# 👇 [추가] 로컬에서 .env 파일을 읽기 위한 라이브러리
+from dotenv import load_dotenv
+
+# ===[셀레니움 관련 라이브러리]===
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -18,28 +21,23 @@ from webdriver_manager.chrome import ChromeDriverManager
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+# 1. 환경변수 로드 (.env 파일이 있으면 읽고, 없으면 건너뜀)
+load_dotenv()
+
 # ===[설정 영역]==========================
 USER_ID = os.environ.get("CNU_ID")
 USER_PW = os.environ.get("CNU_PW")
-DISCORD_WEBHOOK_URL = os.environ.get("with_WEBHOOK_URL")   # 학생 공지용
-MONITOR_WEBHOOK_URL = os.environ.get("MONITOR_WEBHOOK_URL") # 관리자 알림용
-
-# [Only local_test] (주석화 필요)
-# DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks"
-# MONITOR_WEBHOOK_URL = "https://discord.com/api/webhooks"
-# USER_ID = "..."
-# USER_PW = "..."
+DISCORD_WEBHOOK_URL = os.environ.get("with_WEBHOOK_URL")
+MONITOR_WEBHOOK_URL = os.environ.get("MONITOR_WEBHOOK_URL")
 
 LIST_URL = "https://with.cnu.ac.kr/ptfol/imng/icmpNsbjtPgm/findIcmpNsbjtPgmList.do"
 DATA_FILE = "with_data.json"
 # ==========================================
 
-# ===[텍스트 정리기]=========================
 def clean_text(text):
     if not text: return ""
     return re.sub(r'\s+', ' ', text).strip()
 
-# ===[날짜 변환기]=========================
 def parse_str_to_dt(date_str):
     if not date_str: return None
     try:
@@ -50,13 +48,9 @@ def parse_str_to_dt(date_str):
     except:
         return None
 
-# ===[멀티 프로그램 정보 계산]=========================
 def calculate_multi_info(sub_items):
     if not sub_items: return None
-    app_ends = []
-    oper_starts = []
-    oper_ends = []
-    capacities = []
+    app_ends, oper_starts, oper_ends, capacities = [], [], [], []
     for item in sub_items:
         if item['apply_raw']:
             parts = item['apply_raw'].split('~')
@@ -75,125 +69,147 @@ def calculate_multi_info(sub_items):
                 oper_ends.append(dt_s)
         if item['capacity']:
             nums = re.findall(r'\d+', item['capacity'])
-            if nums:
-                capacities.append(int(nums[0]))
+            if nums: capacities.append(int(nums[0]))
+            
     result = {"apply": "", "oper": "", "capacity": ""}
     if app_ends:
-        min_app = min(app_ends)
-        result['apply'] = f"~{min_app.strftime('%m.%d')}"
+        result['apply'] = f"~{min(app_ends).strftime('%m.%d')}"
     if oper_starts and oper_ends:
-        min_start = min(oper_starts)
-        max_end = max(oper_ends)
-        if min_start.date() == max_end.date():
-            result['oper'] = f"{min_start.strftime('%m.%d %H:%M')}~{max_end.strftime('%H:%M')}"
+        min_s, max_e = min(oper_starts), max(oper_ends)
+        if min_s.date() == max_e.date():
+            result['oper'] = f"{min_s.strftime('%m.%d %H:%M')}~{max_e.strftime('%H:%M')}"
         else:
-            result['oper'] = f"{min_start.strftime('%m.%d')}~{max_end.strftime('%m.%d')}"
+            result['oper'] = f"{min_s.strftime('%m.%d')}~{max_e.strftime('%m.%d')}"
     if capacities:
-        min_cap = min(capacities)
-        result['capacity'] = f"{min_cap}명"
+        result['capacity'] = f"{min(capacities)}명"
     return result
 
-# ===[HTML 세부 정보 추출]=========================
 def extract_details(container):
     data = {"apply_raw": "", "oper_raw": "", "capacity": ""}
     try:
-        info_dls = container.find_elements(By.CSS_SELECTOR, ".etc_info_txt dl")
-        for dl in info_dls:
-            dt_text = dl.find_element(By.TAG_NAME, "dt").get_attribute("textContent")
-            dd_text = dl.find_element(By.TAG_NAME, "dd").get_attribute("textContent")
-            if "신청" in dt_text: data["apply_raw"] = clean_text(dd_text)
-            elif "운영" in dt_text or "교육기간" in dt_text: data["oper_raw"] = clean_text(dd_text)
+        for dl in container.find_elements(By.CSS_SELECTOR, ".etc_info_txt dl"):
+            dt = dl.find_element(By.TAG_NAME, "dt").get_attribute("textContent")
+            dd = dl.find_element(By.TAG_NAME, "dd").get_attribute("textContent")
+            if "신청" in dt: data["apply_raw"] = clean_text(dd)
+            elif "운영" in dt or "교육기간" in dt: data["oper_raw"] = clean_text(dd)
     except: pass
     try:
-        cap_dls = container.find_elements(By.CSS_SELECTOR, ".rq_desc dl")
-        for dl in cap_dls:
-            dt_text = dl.find_element(By.TAG_NAME, "dt").get_attribute("textContent")
-            if "모집" in dt_text or "정원" in dt_text:
+        for dl in container.find_elements(By.CSS_SELECTOR, ".rq_desc dl"):
+            dt = dl.find_element(By.TAG_NAME, "dt").get_attribute("textContent")
+            if "모집" in dt or "정원" in dt:
                 data["capacity"] = clean_text(dl.find_element(By.TAG_NAME, "dd").get_attribute("textContent"))
     except: pass
     return data
 
-# ===[디코 전송기]=========================
 def post_to_discord_safe(content):
-    if not DISCORD_WEBHOOK_URL or "http" not in DISCORD_WEBHOOK_URL: 
-        print("⚠ 공지용 웹후크 주소가 설정되지 않음")
-        return
+    if not DISCORD_WEBHOOK_URL or "http" not in DISCORD_WEBHOOK_URL: return
     session = requests.Session()
     retry = Retry(connect=3, backoff_factor=1)
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
+    session.mount('http://', HTTPAdapter(max_retries=retry))
+    session.mount('https://', HTTPAdapter(max_retries=retry))
     try:
-        content += "<@&1456894900866912382>"
-        response = session.post(DISCORD_WEBHOOK_URL, json={"content": content}, timeout=10)
-        response.raise_for_status()
+        # 멘션 없이 내용만 전송
+        session.post(DISCORD_WEBHOOK_URL, json={"content": content}, timeout=10)
         print("✉ [전송 성공]")
     except Exception as e:
         print(f"⚠ [전송 실패] {e}")
 
-# ===[메시지 생성 및 전송]=========================
-def send_discord_message(info):
+# ===[메시지 디자인 수정 영역]===
+def create_message_content(info):
+    """
+    요청하신 디자인:
+    ** ▶ D-20 | 제목 **
+    > [Sub Title] 외 N개 반 (멀티일 경우)
+    > 신청: 날짜 | 운영: 날짜 | 정원: N명
+    """
+    # 1. 아이콘 및 D-Day 설정
+    icon = "▶" if info['is_multi'] else "▷"
     d_day_part = f"{info['d_day']} | " if info['d_day'] else ""
-    header = f"### 📢 [{d_day_part}{info['title']}]({info['link']})\n"
-    body = ""
-    if info['is_multi']:
-        if info['sub_items']:
-            first_sub = info['sub_items'][0]['title']
-            count = len(info['sub_items']) - 1
-            if count > 0:
-                body += f"- {first_sub} 외 {count}개\n"
-            else:
-                body += f"- {first_sub}\n"
-        parts = []
-        if info['multi_calc']['apply']: parts.append(f"**신청**: {info['multi_calc']['apply']}")
-        if info['multi_calc']['oper']: parts.append(f"**운영**: {info['multi_calc']['oper']}")
-        if info['multi_calc']['capacity']: parts.append(f"**정원**: {info['multi_calc']['capacity']}")
-        if parts: body += " | ".join(parts) + "\n"
-    else:
-        def simple_date(raw):
-            m = re.search(r'\d{4}\.(\d{2}\.\d{2})', raw)
-            return m.group(1) if m else raw
-        def format_single_period(raw, is_apply=False):
-            if not raw: return ""
-            parts = raw.split('~')
-            if len(parts) < 2: return raw
-            s = simple_date(parts[0])
-            e = simple_date(parts[1])
-            return f"~{e}" if is_apply else f"{s}~{e}"
-        parts = []
-        if info['apply_raw']: parts.append(f"**신청**: {format_single_period(info['apply_raw'], True)}")
-        if info['oper_raw']: parts.append(f"**운영**: {format_single_period(info['oper_raw'], False)}")
-        if info['capacity']: parts.append(f"**정원**: {info['capacity']}")
-        if parts: body += " | ".join(parts) + "\n"
-    post_to_discord_safe(header + body)
-    print(f"☑ 처리 완료: {info['title']}")
+    
+    # 2. 제목 (진하게, 링크 포함)
+    header = f"** {icon} {d_day_part}[{info['title']}](<{info['link']}>) **\n"
+    
+    body_lines = []
 
-# 관리자 오류 알림 함수
+    # 3. (멀티 프로그램인 경우) 세부 프로그램 대표 표시
+    if info['is_multi'] and info['sub_items']:
+        first_sub = info['sub_items'][0]['title']
+        count = len(info['sub_items']) - 1
+        sub_text = f"[{first_sub}] 외 {count}개 반" if count > 0 else f"[{first_sub}]"
+        body_lines.append(sub_text)
+
+    # 4. 신청/운영/정원 정보 조립
+    parts = []
+    
+    # 날짜 포맷팅 내부 함수
+    def simple_date(raw):
+        m = re.search(r'\d{4}\.(\d{2}\.\d{2})', raw)
+        return m.group(1) if m else raw
+
+    def format_single_period(raw, is_apply=False):
+        if not raw: return ""
+        p = raw.split('~')
+        if len(p) < 2: return raw
+        s, e = simple_date(p[0]), simple_date(p[1])
+        return f"~{e}" if is_apply else f"{s}~{e}"
+
+    # 데이터 추출
+    apply_txt, oper_txt, cap_txt = "", "", ""
+    
+    if info['is_multi']:
+        apply_txt = info['multi_calc']['apply']
+        oper_txt = info['multi_calc']['oper']
+        cap_txt = info['multi_calc']['capacity']
+    else:
+        apply_txt = format_single_period(info['apply_raw'], True)
+        oper_txt = format_single_period(info['oper_raw'], False)
+        cap_txt = info['capacity']
+
+    # 정보 합치기 (라벨 Bold 제거)
+    if apply_txt: parts.append(f"신청: {apply_txt}")
+    if oper_txt: parts.append(f"운영: {oper_txt}")
+    if cap_txt: parts.append(f"정원: {cap_txt}")
+    
+    if parts:
+        body_lines.append(" | ".join(parts))
+
+    # 5. 본문 들여쓰기 처리 (디스코드 인용문 '>' 사용)
+    body_text = ""
+    for line in body_lines:
+        body_text += f"> {line}\n"
+
+    return header + body_text + "\n"
+
+def send_batch_messages(new_items):
+    if not new_items: return
+    
+    count = len(new_items)
+    # [메인 헤더]
+    full_message = f"### :compass: [CNU With+] 새로운 비교과 {count}건\n\n"
+    
+    for item in reversed(new_items):
+        content_chunk = create_message_content(item)
+        if len(full_message) + len(content_chunk) > 1900:
+            post_to_discord_safe(full_message)
+            full_message = ""
+        full_message += content_chunk
+
+    if full_message:
+        post_to_discord_safe(full_message)
+
 def send_simple_error_log():
     if not MONITOR_WEBHOOK_URL: return 
-
-    now = time.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # 메시지 내용
-    content = f"🚨 **[WITH 봇 오류 발생]** \n{now}"
-    
     try:
-        requests.post(MONITOR_WEBHOOK_URL, json={"content": content})
-        print("✉ [관리자 알림 전송 완료]")
-    except:
-        print("⚠ 관리자 알림 전송 실패")
+        requests.post(MONITOR_WEBHOOK_URL, json={"content": f"🚨 **[WITH 봇 오류]** \n{time.strftime('%Y-%m-%d %H:%M:%S')}"})
+    except: pass
 
-# ===[셀레니움 크롤러: 로그인~]=========================
 def run_selenium_scraper():
     print("\n" + "━" * 40)
     print("🤖 WITH(비교과) 알람봇 실행")
 
     try:
-        # 1. 크롬 옵션 설정
         chrome_options = Options()
-        chrome_options.add_argument("--headless") # 서버용 (필수)
-        # chrome_options.add_experimental_option("detach", True) # 서버용 주석처리
-
+        chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--window-size=1920,1080")
@@ -202,193 +218,138 @@ def run_selenium_scraper():
         driver = webdriver.Chrome(service=service, options=chrome_options)
         wait = WebDriverWait(driver, 20)
 
-        # 2. 로그인
         print(f"☐ 로그인 페이지 접속...")
         driver.get("https://with.cnu.ac.kr/index.do")
         
         try:
             login_btn = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "login_btn")))
             driver.execute_script("arguments[0].click();", login_btn)
-        except Exception as e:
-            print(f"⚠ 로그인 버튼 없음: {e}")
+        except: pass
 
         try:
             try:
-                id_input = wait.until(EC.visibility_of_element_located((By.NAME, "userId")))
-                id_input.clear()
-                id_input.send_keys(USER_ID)
-                driver.find_element(By.NAME, "password").send_keys(USER_PW)
-                driver.find_element(By.NAME, "password").send_keys(Keys.RETURN)
+                wait.until(EC.visibility_of_element_located((By.NAME, "userId"))).send_keys(USER_ID)
+                driver.find_element(By.NAME, "password").send_keys(USER_PW + Keys.RETURN)
             except:
-                iframes = driver.find_elements(By.TAG_NAME, "iframe")
-                found_iframe = False
-                for frame in iframes:
+                found = False
+                for frame in driver.find_elements(By.TAG_NAME, "iframe"):
                     driver.switch_to.default_content()
                     driver.switch_to.frame(frame)
                     try:
-                        id_input = driver.find_element(By.NAME, "userId")
-                        id_input.clear()
-                        id_input.send_keys(USER_ID)
-                        driver.find_element(By.NAME, "password").send_keys(USER_PW)
-                        driver.find_element(By.NAME, "password").send_keys(Keys.RETURN)
-                        found_iframe = True
+                        driver.find_element(By.NAME, "userId").send_keys(USER_ID)
+                        driver.find_element(By.NAME, "password").send_keys(USER_PW + Keys.RETURN)
+                        found = True
                         driver.switch_to.default_content()
-                        print("☑ iframe 내부 로그인 폼 감지")
                         break
                     except: continue
-                
-                if not found_iframe:
-                    raise Exception("로그인 입력창을 찾을 수 없습니다.")
-            
-            print("☐ 로그인 정보 입력 완료, 대기 중...")
+                if not found: raise Exception("로그인 폼 못 찾음")
             
             try:
                 wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "login_btn")))
-                print("☑ 로그인 성공 확인")
-            except:
-                print("⚠ 로그인 실패 (로그인 버튼 존재)")
+                print("☑ 로그인 성공")
+            except: print("⚠ 로그인 실패 가능성")
+        except Exception as e: raise e
 
-        except Exception as e:
-            raise e
-
-        # 3. 데이터 로드
         last_read_id = None
-        is_first_run = False
+        is_first = False
         if os.path.exists(DATA_FILE):
             try:
                 with open(DATA_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    last_read_id = data.get("last_read_id")
+                    last_read_id = json.load(f).get("last_read_id")
             except: pass
-        if not last_read_id:
-            print("☐ [WITH 봇] 최초 실행")
-            is_first_run = True
+        if not last_read_id: is_first = True
 
-        # 4. 목록 페이지 이동
         driver.get(LIST_URL)
-        try:
-            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "li div.cont_box")))
-        except:
-            raise Exception("목록 로딩 실패 (타임아웃)")
+        try: wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "li div.cont_box")))
+        except: raise Exception("목록 로딩 실패")
 
         new_items = []
-        stop_scanning = False
-        latest_id_on_top = None
+        stop = False
+        top_id = None
 
-        # 5. 스캔
         for page in range(1, 4): 
-            if stop_scanning: break
-            print(f"\n☐ [페이지 {page}] 분석 중...")
+            if stop: break
+            print(f"☐ [페이지 {page}] 스캔 중...")
             if page > 1:
                 try:
                     driver.execute_script(f"global.page({page});")
                     time.sleep(2)
                 except: break
+            
             items = driver.find_elements(By.CSS_SELECTOR, "li:has(div.cont_box)")
-            if not items:
-                all_lis = driver.find_elements(By.CSS_SELECTOR, "li")
-                items = [li for li in all_lis if li.find_elements(By.CLASS_NAME, "cont_box")]
+            if not items: items = [li for li in driver.find_elements(By.CSS_SELECTOR, "li") if li.find_elements(By.CLASS_NAME, "cont_box")]
 
             for item in items:
                 try:
-                    title_link = item.find_element(By.CSS_SELECTOR, "a.tit")
-                    data_params = title_link.get_attribute("data-params")
-                    program_id = ""
-                    if data_params and "encSddpbSeq" in data_params:
-                        import json as pyjson
-                        try:
-                            program_id = pyjson.loads(data_params).get("encSddpbSeq")
-                        except: pass
-                    
-                    if not program_id: continue
-                    if latest_id_on_top is None: latest_id_on_top = program_id
-                    if program_id == last_read_id:
-                        print("⊙ 기존 글 도착. 스캔 종료.")
-                        stop_scanning = True
-                        break
-                    
-                    if is_first_run: continue
-
-                    real_link = f"https://with.cnu.ac.kr/ptfol/imng/icmpNsbjtPgm/findIcmpNsbjtPgmInfo.do?encSddpbSeq={program_id}&paginationInfo.currentPageNo=1"
-                    full_title_text = title_link.get_attribute("textContent")
+                    a_tag = item.find_element(By.CSS_SELECTOR, "a.tit")
+                    pid = ""
                     try:
-                        label_text = title_link.find_element(By.CLASS_NAME, "label").get_attribute("textContent")
-                        final_title = full_title_text.replace(label_text, "")
-                    except:
-                        final_title = full_title_text
-                    title = clean_text(final_title)
+                        import json as pyjson
+                        pid = pyjson.loads(a_tag.get_attribute("data-params")).get("encSddpbSeq")
+                    except: pass
+                    
+                    if not pid: continue
+                    if top_id is None: top_id = pid
+                    if pid == last_read_id:
+                        stop = True
+                        break
+                    if is_first: continue
+
+                    link = f"https://with.cnu.ac.kr/ptfol/imng/icmpNsbjtPgm/findIcmpNsbjtPgmInfo.do?encSddpbSeq={pid}&paginationInfo.currentPageNo=1"
+                    full_title = a_tag.get_attribute("textContent")
+                    try: title = clean_text(full_title.replace(a_tag.find_element(By.CLASS_NAME, "label").get_attribute("textContent"), ""))
+                    except: title = clean_text(full_title)
+                    
                     try: d_day = clean_text(item.find_element(By.CSS_SELECTOR, "span.day").get_attribute("textContent"))
                     except: d_day = ""
+                    
                     is_multi = "multi_class" in item.get_attribute("class")
-
-                    parsed_data = {
-                        "id": program_id, "title": title, "d_day": d_day, "link": real_link,
-                        "is_multi": is_multi, "sub_items": [], "apply_raw": "", "oper_raw": "", "capacity": "", "multi_calc": {}
+                    p_data = {
+                        "id": pid, "title": title, "d_day": d_day, "link": link,
+                        "is_multi": is_multi, "sub_items": [], "multi_calc": {},
+                        "apply_raw": "", "oper_raw": "", "capacity": ""
                     }
+
                     try:
-                        more_btns = item.find_elements(By.CLASS_NAME, "class_more_open")
-                        if more_btns and more_btns[0].is_displayed():
-                            driver.execute_script("arguments[0].click();", more_btns[0])
+                        more = item.find_elements(By.CLASS_NAME, "class_more_open")
+                        if more and more[0].is_displayed():
+                            driver.execute_script("arguments[0].click();", more[0])
                             time.sleep(0.5)
                     except: pass
 
                     if is_multi:
-                        sub_conts = item.find_elements(By.CLASS_NAME, "class_cont")
-                        for sub in sub_conts:
+                        for sub in item.find_elements(By.CLASS_NAME, "class_cont"):
                             if not sub.get_attribute("textContent").strip(): continue
                             try:
-                                sub_a = sub.find_element(By.CSS_SELECTOR, "a.tit")
-                                sub_full = sub_a.get_attribute("textContent")
-                                try:
-                                    lbl = sub_a.find_element(By.CLASS_NAME, "label").get_attribute("textContent")
-                                    sub_title = sub_full.replace(lbl, "")
-                                except: sub_title = sub_full
-                                sub_title = clean_text(sub_title)
+                                s_title = sub.find_element(By.CSS_SELECTOR, "a.tit").get_attribute("textContent")
+                                try: s_title = s_title.replace(sub.find_element(By.CLASS_NAME, "label").get_attribute("textContent"), "")
+                                except: pass
+                                p_data['sub_items'].append({"title": clean_text(s_title), **extract_details(sub)})
                             except: continue
-                            details = extract_details(sub)
-                            parsed_data['sub_items'].append({"title": sub_title, **details})
-                        parsed_data['multi_calc'] = calculate_multi_info(parsed_data['sub_items'])
+                        p_data['multi_calc'] = calculate_multi_info(p_data['sub_items'])
                     else:
-                        details = extract_details(item)
-                        parsed_data.update(details)
-                    new_items.append(parsed_data)
-                except Exception as e:
-                    print(f"⚠ 파싱 오류: {e}")
-                    continue
+                        p_data.update(extract_details(item))
+                    new_items.append(p_data)
+                except: continue
         
-        # 6. 결과 처리
-        if is_first_run:
-            if latest_id_on_top:
-                with open(DATA_FILE, "w", encoding="utf-8") as f:
-                    json.dump({"last_read_id": latest_id_on_top}, f, indent=4)
-                print(f"☑ 기준점 설정 완료 (ID: {latest_id_on_top})")
-            else:
-                print("⚠ 게시글 없음")
+        if is_first:
+            if top_id:
+                with open(DATA_FILE, "w", encoding="utf-8") as f: json.dump({"last_read_id": top_id}, f)
+            print("☐ 최초 실행 - 기준점 설정 완료")
         elif new_items:
-            print(f"● {len(new_items)}개 새 글 전송")
-            for item in reversed(new_items):
-                send_discord_message(item)
-                time.sleep(1)
-            if latest_id_on_top:
-                with open(DATA_FILE, "w", encoding="utf-8") as f:
-                    json.dump({"last_read_id": latest_id_on_top}, f, indent=4)
-                print("☑ 데이터 저장 완료")
+            print(f"● {len(new_items)}개 새 글 -> 묶음 전송")
+            send_batch_messages(new_items)
+            if top_id:
+                with open(DATA_FILE, "w", encoding="utf-8") as f: json.dump({"last_read_id": top_id}, f)
         else:
             print("☒ 새 글 없음")
 
-    # 에러 발생 시 처리
     except Exception as e:
-        print(f"⚠ 오류 발생: {e}")
-        
-        # 1. 깃허브 로그용으로 상세 에러는 콘솔에 찍음
-        traceback.print_exc() 
-        
-        # 2. 관리자 알림은 간단하게
+        print(f"⚠ 에러: {e}")
+        traceback.print_exc()
         send_simple_error_log()
-
     finally:
-        if 'driver' in locals():
-            driver.quit()
+        if 'driver' in locals(): driver.quit()
 
 if __name__ == "__main__":
     run_selenium_scraper()

@@ -12,7 +12,6 @@ from urllib3.util.retry import Retry
 # ===[설정 영역]==========================
 DISCORD_WEBHOOK_URL = os.environ.get("cse_WEBHOOK_URL")
 MONITOR_WEBHOOK_URL = os.environ.get("MONITOR_WEBHOOK_URL") # 관리자 알림용
-
 # [Only local_test]
 # DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/..."
 # MONITOR_WEBHOOK_URL = "https://discord.com/api/webhooks/..."
@@ -85,10 +84,9 @@ def send_discord_batch_alert(category_name, new_notices):
     for notice in new_notices:
         icon = "▶" if notice['is_top'] else "▷" # 상단 고정 공지 / 일반 공지 구분
         message_content += f"{icon} [{notice['title']}](<{notice['link']}>)\n" # 메시지 추가
-
+    message_content += MENTION_ROLE
     try:
         # 메시지 전송
-        message_content += "<@&1456894753538052208>"
         requests.post(DISCORD_WEBHOOK_URL, json={"content": message_content})
         print(f"✉ [전송 완료] {category_name} - {count}건")
     except Exception as e:

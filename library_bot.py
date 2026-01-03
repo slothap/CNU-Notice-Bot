@@ -70,7 +70,6 @@ def send_discord_message(new_notices):
         message_content += f"{icon} [{title}](<{link}>)\n"
 
     try:
-        message_content += "<@&1456894936216506451>"
         requests.post(DISCORD_WEBHOOK_URL, json={"content": message_content})
         print(f"✉ [전송 완료] 도서관 공지 {count}건")
     except Exception as e:

@@ -43,24 +43,32 @@ TARGET_BOARDS = [
 ]
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Referer': 'https://computer.cnu.ac.kr/'
 }
 # ==========================================
 
 
 # ===[세션 생성기]===
 def get_session():
-    """빠른 실패 + 적절한 재시도"""
+    """재시도 로직이 있는 세션 생성"""
     session = requests.Session()
+    
     retry = Retry(
-        total=2,  # 재시도 2회로 최소화
-        backoff_factor=1,  # 1초, 2초 대기
-        status_forcelist=[500, 502, 503, 504],
+        total=3,  # 재시도 3회
+        backoff_factor=2,  # 2초, 4초, 8초 대기
+        status_forcelist=[500, 502, 503, 504, 429],
         raise_on_status=False
     )
+    
     adapter = HTTPAdapter(max_retries=retry)
     session.mount('http://', adapter)
     session.mount('https://', adapter)
+    
     return session 
 
 
@@ -119,30 +127,33 @@ def send_simple_error_log(message=None):
 
 
 # ===[게시판 검사]===
-def check_board(session, board_info, saved_data):
-    """개별 게시판 확인 및 새 글 감지"""
+def check_board(session, board_info, saved_data, attempt=1, max_attempts=2):
+    """개별 게시판 확인 및 새 글 감지 (재시도 로직 포함)"""
     board_id = board_info["id"]
     board_name = board_info["name"]
     url = board_info["url"]
 
-    print(f"● [{board_name}] 분석 중...")
+    print(f"● [{board_name}] 분석 중... (시도 {attempt}/{max_attempts})")
 
     try:
-        # 타임아웃: 연결 15초, 읽기 25초 (안정성과 속도의 균형)
+        # 타임아웃: 연결 20초, 읽기 30초 (느린 서버 대응)
         response = session.get(
             url, 
             headers=HEADERS, 
             verify=False, 
-            timeout=(15, 25)
+            timeout=(20, 30)
         )
+        
+        # 응답 상태 확인
+        if response.status_code != 200:
+            raise Exception(f"HTTP {response.status_code}")
         
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')
         rows = soup.select('table.board-table tbody tr')
         
         if not rows:
-            send_simple_error_log(f"{board_name}-게시글(tr)을 찾을 수 없음")
-            raise Exception(f"⚠ [{board_name}] 게시글(tr)을 찾을 수 없음")
+            raise Exception("게시글(tr)을 찾을 수 없음")
             
         last_id = saved_data.get(board_id, 0)
         new_notices = []
@@ -183,7 +194,7 @@ def check_board(session, board_info, saved_data):
 
         # 최초 실행 처리
         if last_id == 0 and max_id > 0:
-            print(f"  ☐ 최초 실행 - 기준점(ID: {max_id})만 설정")
+            print(f"  ☀ 최초 실행 - 기준점(ID: {max_id})만 설정")
             saved_data[board_id] = max_id
             return True
         
@@ -194,25 +205,48 @@ def check_board(session, board_info, saved_data):
             saved_data[board_id] = max_id
             return True
         
-        print(f"  ☐ 새 글 없음")
+        print("  ☐ 새 글 없음")
         return False
         
     except requests.exceptions.Timeout:
-        print(f"  ⏱ 타임아웃 (서버 응답 지연)")
-        return False
+        print("  ⏱ 타임아웃 (서버 응답 지연)")
+        
+        # 재시도 로직
+        if attempt < max_attempts:
+            print(f"  ☐ 5초 후 재시도...")
+            time.sleep(5)
+            return check_board(session, board_info, saved_data, attempt + 1, max_attempts)
+        else:
+            print(f"  ☒ 최대 재시도 횟수 초과")
+            send_simple_error_log(f"{board_name}-타임아웃 (GitHub Actions 차단 의심)")
+            return False
+    
+    except requests.exceptions.ConnectionError as e:
+        print(f"  ⚠ 연결 오류: {str(e)[:80]}")
+        
+        # 재시도 로직
+        if attempt < max_attempts:
+            print(f"  ☐ 5초 후 재시도...")
+            time.sleep(5)
+            return check_board(session, board_info, saved_data, attempt + 1, max_attempts)
+        else:
+            print(f"  ⚠ 연결 실패 - GitHub Actions IP 차단 가능성 높음")
+            send_simple_error_log(f"{board_name}-연결 차단 (학교 서버 IP 필터링)")
+            return False
         
     except Exception as e:
         error_msg = f"  ⚠ 오류: {str(e)[:80]}"
         print(error_msg)
-        send_simple_error_log(f"{board_name}-접속 실패")
+        send_simple_error_log(f"{board_name}-{str(e)[:50]}")
         return False
 
 
 # ===[MAIN]===
 def run_bot():
-    """메인 실행 함수 - 순차 처리 방식"""
+    """메인 실행 함수"""
     print("\n" + "━" * 40)
     print(f"🤖 CSE 공지봇 실행: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"☐ 실행 환경: {'GitHub Actions' if os.getenv('GITHUB_ACTIONS') else '로컬'}")
     
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     
@@ -229,19 +263,34 @@ def run_bot():
 
         session = get_session()
         any_changes = False
+        success_count = 0
+        fail_count = 0
         
         print("☐ 게시판 순차 확인 중...\n")
         
         for i, board in enumerate(TARGET_BOARDS, 1):
-            if check_board(session, board, saved_data):
-                any_changes = True
+            result = check_board(session, board, saved_data)
             
-            # 마지막 게시판이 아니면 2초 대기 (서버 부하 방지)
+            if result:
+                any_changes = True
+                success_count += 1
+            else:
+                # 결과가 False여도 오류인지 새 글이 없는지 구분 필요
+                fail_count += 1
+            
+            # 마지막 게시판이 아니면 3초 대기
             if i < len(TARGET_BOARDS):
-                time.sleep(2)
+                time.sleep(3)
+        
+        # 결과 요약
+        print(f"\n결과: 성공 {success_count}개, 실패/변동없음 {fail_count}개")
+        
+        # 모든 게시판 실패 시 경고
+        if fail_count == len(TARGET_BOARDS):
+            print("⚠ 모든 게시판 접속 실패 - GitHub Actions IP 차단 의심")
+            send_simple_error_log("전체 게시판 접속 실패 - IP 차단 의심")
         
         # 데이터 저장
-        print()
         if any_changes:
             with open(DATA_FILE, "w", encoding="utf-8") as f:
                 json.dump(saved_data, f, ensure_ascii=False, indent=4)

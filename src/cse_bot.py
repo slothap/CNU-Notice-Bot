@@ -121,7 +121,7 @@ def check_board(session, board_info, saved_data):
 
     try:
         # 1) 인터넷 접속
-        response = session.get(url, headers=HEADERS, verify=False, timeout=(10, 20))
+        response = session.get(url, headers=HEADERS, verify=False, timeout=(15, 30)) # 연결 15초, 읽기 30초
         
         # 2) 한글 깨짐 방지
         response.encoding = 'utf-8'
@@ -222,7 +222,7 @@ def run_bot():
         any_changes = False # 파일 수정 필요 여부
 
         # 게시판 목록(4개)를 반복
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=2) as executor: # 4에서 2로 변경
             futures = [executor.submit(check_board, get_session(), board, saved_data) for board in TARGET_BOARDS]
             for future in futures:
                 if future.result(): # 각 스레드의 실행 결과(True/False)를 확인

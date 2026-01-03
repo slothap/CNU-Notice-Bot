@@ -1,4 +1,4 @@
-import requests
+from curl_cffi import requests
 from bs4 import BeautifulSoup
 import os
 import time
@@ -59,11 +59,7 @@ HEADERS = {
 def get_session():
     """Retry 가능한 세션 생성"""
     session = requests.Session()
-    retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    return session 
+    return session
 
 
 # ===[ID 추출기]===
@@ -133,8 +129,9 @@ def check_board(session, board_info, saved_data):
     print(f"● [{board_name}] 분석 중...")
 
     try:
-        # verify=False 추가 (SSL 인증서 검증 건너뜀)
-        response = session.get(url, headers=HEADERS, verify=False, timeout=30)
+        # verify=False 대신 impersonate="chrome120" 사용
+        # 진짜 크롬 브라우저인 척(TLS Fingerprint 위장) 접속
+        response = session.get(url, headers=HEADERS, timeout=30, impersonate="chrome120")
         
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')

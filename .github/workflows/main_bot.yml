@@ -66,7 +66,8 @@ jobs:
           if git diff --staged --quiet; then
             echo "💤 변경된 내용이 없습니다."
           else
-            git commit -m "Update all notice data"
+            echo "💾 새로운 글을 발견하여 기록을 업데이트합니다."
+            git commit -m "echo "🤖 General 봇 데이터 갱신"
             git pull --rebase origin main
             git push
           fi

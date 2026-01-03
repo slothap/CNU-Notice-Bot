@@ -36,7 +36,13 @@ TARGET_BOARDS = [
 ]
 # 헤더 정보
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Connection': 'keep-alive',
+    'Referer': 'https://dorm.cnu.ac.kr/',
+    'Upgrade-Insecure-Requests': '1'
 }
 # ==========================================
 
@@ -81,17 +87,22 @@ def send_discord_batch_alert(category_name, new_notices):
         send_simple_error_log("공지 전송 실패")
 
 # 관리자 함수
-def send_simple_error_log(message=None):
+def send_simple_error_log(error_msg=None):
     if not MONITOR_WEBHOOK_URL: return 
 
     now = time.strftime('%Y-%m-%d %H:%M:%S')
-    if message:
-        content = f"🚨 **[기숙사 봇 오류]** \n{message}\n({now})"
+    if error_msg:
+        content = (
+            f"🚨 **[기숙사 봇 접속 장애]**\n"
+            f"시간: {now}\n"
+            f"에러: ```{error_msg}```\n"
+            f"> 💡 **IP 차단**이나 **서버 점검**이 의심됩니다."
+        )
     else:
         content = f"🚨 **[기숙사 봇 오류]** \n{now}"
     try:
-        requests.post(MONITOR_WEBHOOK_URL, json={"content": content})
-        print("✉ 관리자 알림 전송 완료")
+        requests.post(MONITOR_WEBHOOK_URL, json={"content": content}, timeout=5)
+        print("✉ [관리자 알림 전송 완료]")
     except:
         print("⚠ 관리자 알림 전송 실패")
 
@@ -104,8 +115,8 @@ def check_board(session, board_info, saved_data):
     print(f"⌕ [{board_name}] 분석 중...")
     
     try:
-        # 1) 인터넷 접속
-        response = session.get(url, headers=HEADERS, verify=False, timeout=10)
+        # 1) 인터넷 접속 (timeout 10 -> 30 변경)
+        response = session.get(url, headers=HEADERS, verify=False, timeout=30) # 여기 30초로 변경
         response.encoding = 'utf-8'
 
         # 3) HTML 파싱
@@ -176,7 +187,8 @@ def check_board(session, board_info, saved_data):
 
     except Exception as e:
         print(f"⚠ [{board_name}] 접속/파싱 실패: {e}")
-        send_simple_error_log(f"{board_name}-접속/파싱 실패")
+        # 에러 내용을 함께 보냄
+        send_simple_error_log(f"[{board_name}] 접속 실패\n{str(e)}")
 
 
 # ===[MAIN]===
@@ -212,7 +224,7 @@ def run_bot():
     except Exception as e:
         print(f"⚠ 치명적인 오류 발생: {e}")
         traceback.print_exc()
-        send_simple_error_log("프로그램 강제 종료")
+        send_simple_error_log(f"프로그램 강제 종료\n{str(e)}")
 
 if __name__ == "__main__":
     run_bot()

@@ -195,17 +195,22 @@ def send_batch_messages(new_items):
     if full_message:
         post_to_discord_safe(full_message)
 
-def send_simple_error_log(message=None):
+def send_simple_error_log(error_msg=None):
     if not MONITOR_WEBHOOK_URL: return 
 
     now = time.strftime('%Y-%m-%d %H:%M:%S')
-    if message:
-        content = f"🚨 **[비교과 봇 오류]** \n{message}\n({now})"
+    if error_msg:
+        content = (
+            f"🚨 **[WITH(비교과) 봇 오류]**\n"
+            f"시간: {now}\n"
+            f"에러: ```{error_msg}```\n"
+            f"> 💡 **로그인 실패**나 **사이트 구조 변경**일 수 있습니다."
+        )
     else:
-        content = f"🚨 **[비교과 봇 오류]** \n{now}"
+        content = f"🚨 **[WITH(비교과) 봇 오류]** \n{now}"
     
     try:
-        requests.post(MONITOR_WEBHOOK_URL, json={"content": content})
+        requests.post(MONITOR_WEBHOOK_URL, json={"content": content}, timeout=5)
         print("✉ [관리자 알림 전송 완료]")
     except:
         print("⚠ 관리자 알림 전송 실패")
@@ -363,7 +368,8 @@ def run_selenium_scraper():
     except Exception as e:
         print(f"⚠ 에러: {e}")
         traceback.print_exc()
-        send_simple_error_log("프로그램 강제 종료")
+        # 상세 에러 전송
+        send_simple_error_log(f"프로그램 강제 종료\n{str(e)}")
     finally:
         if 'driver' in locals(): driver.quit()
 

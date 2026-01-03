@@ -26,7 +26,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "..", "data", "library_data.json")
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Connection': 'keep-alive',
+    'Referer': 'https://library.cnu.ac.kr/',
+    'Upgrade-Insecure-Requests': '1'
 }
 # ==========================================
 
@@ -81,17 +87,22 @@ def send_discord_message(new_notices):
         print(f"⚠ [전송 실패] {e}")
 
 # 관리자 심플 알림 함수
-def send_simple_error_log(message=None):
+def send_simple_error_log(error_msg=None):
     if not MONITOR_WEBHOOK_URL: return 
 
     now = time.strftime('%Y-%m-%d %H:%M:%S')
-    if message:
-        content = f"🚨 **[도서관 봇 오류]** \n{message}\n({now})"
+    if error_msg:
+        content = (
+            f"🚨 **[도서관 봇 접속 장애]**\n"
+            f"시간: {now}\n"
+            f"에러: ```{error_msg}```\n"
+            f"> 💡 **IP 차단**이나 **서버 점검**이 의심됩니다."
+        )
     else:
         content = f"🚨 **[도서관 봇 오류]** \n{now}"
     
     try:
-        requests.post(MONITOR_WEBHOOK_URL, json={"content": content})
+        requests.post(MONITOR_WEBHOOK_URL, json={"content": content}, timeout=5)
         print("✉ [관리자 알림 전송 완료]")
     except:
         print("⚠ 관리자 알림 전송 실패")
@@ -113,7 +124,7 @@ def check_library_notices():
 
         # 2. 웹페이지 접속
         session = get_session()
-        response = session.get(URL, headers=HEADERS, verify=False, timeout=10)
+        response = session.get(URL, headers=HEADERS, verify=False, timeout=30)  # 여기 30초로 변경
         response.encoding = 'utf-8'
 
         # 3. HTML 파싱
@@ -177,7 +188,7 @@ def check_library_notices():
     except Exception as e:
         print(f"⚠ 치명적인 오류 발생: {e}")
         traceback.print_exc()
-        send_simple_error_log("프로그램 강제 종료")
+        send_simple_error_log(f"프로그램 강제 종료\n{str(e)}") # 상세 에러 내용 전송
 
 if __name__ == "__main__":
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

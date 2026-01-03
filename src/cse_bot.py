@@ -100,13 +100,21 @@ def send_discord_batch_alert(category_name, new_notices):
 
 
 # ===[관리자 알림]===
-def send_simple_error_log():
+def send_simple_error_log(error_msg=None):
     """[관리자용] 에러 발생 사실만 간단하게 알림"""
     if not MONITOR_WEBHOOK_URL:
         return 
 
     now = time.strftime('%Y-%m-%d %H:%M:%S')
-    content = f"🚨 **[CSE 공지봇 오류 발생]** \n{now}"
+    if error_msg:
+        content = (
+            f"🚨 **[CSE 공지봇 접속 장애]**\n"
+            f"시간: {now}\n"
+            f"에러: ```{error_msg}```\n"
+            f"> 💡 **IP 차단**이나 **서버 점검**이 의심됩니다. 확인이 필요합니다."
+        )
+    else:
+        content = f"🚨 **[CSE 공지봇 치명적 오류]** \n{now}"
     
     try:
         requests.post(MONITOR_WEBHOOK_URL, json={"content": content}, timeout=5)
@@ -190,6 +198,7 @@ def check_board(session, board_info, saved_data):
 
     except Exception as e:
         print(f"⚠ [{board_name}] 에러: {e}")
+        send_simple_error_log(f"[{board_name}] 접속 실패\n{str(e)}")
         return False
 
 
@@ -232,7 +241,7 @@ def run_bot():
     except Exception as e:
         print(f"⚠ 치명적인 오류 발생: {e}")
         traceback.print_exc()
-        send_simple_error_log()
+        send_simple_error_log(f"프로그램 강제 종료\n{str(e)}")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,8 @@ import json
 import re
 import urllib3
 import traceback 
+import random
+from fake_useragent import UserAgent
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from dotenv import load_dotenv
@@ -34,17 +36,17 @@ TARGET_BOARDS = [
         "url": "https://dorm.cnu.ac.kr/_prog/_board/?code=sub03_0302&site_dvs_cd=kr&menu_dvs_cd=0303"
     }
 ]
-# 헤더 정보
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Connection': 'keep-alive',
-    'Referer': 'https://dorm.cnu.ac.kr/',
-    'Upgrade-Insecure-Requests': '1'
-}
 # ==========================================
+
+# ===[랜덤 헤더 생성기]===
+def get_random_headers():
+    ua = UserAgent()
+    return {
+        'User-Agent': ua.random,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Connection': 'keep-alive',
+        'Referer': 'https://dorm.cnu.ac.kr/'
+    }
 
 # ===[세션 생성기]===
 def get_session():
@@ -116,7 +118,7 @@ def check_board(session, board_info, saved_data):
     
     try:
         # 1) 인터넷 접속 (timeout 10 -> 30 변경)
-        response = session.get(url, headers=HEADERS, verify=False, timeout=30) # 여기 30초로 변경
+        response = session.get(url, headers=get_random_headers(), verify=False, timeout=30)
         response.encoding = 'utf-8'
 
         # 3) HTML 파싱
@@ -210,6 +212,8 @@ def run_bot():
         any_changes = False
 
         for board in TARGET_BOARDS:
+            delay = random.uniform(2, 4)
+            time.sleep(delay)
             if check_board(session, board, saved_data):
                 any_changes = True
 

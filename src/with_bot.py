@@ -7,6 +7,7 @@ import traceback
 from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
+import random
 import json as pyjson
 
 # ===[셀레니움 관련 라이브러리]===
@@ -276,6 +277,7 @@ def run_selenium_scraper():
         if not last_read_id: is_first = True
 
         driver.get(LIST_URL)
+        time.sleep(random.uniform(2, 4))
         try: wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "li div.cont_box")))
         except:
             send_simple_error_log("목록 로딩 실패")
@@ -291,7 +293,7 @@ def run_selenium_scraper():
             if page > 1:
                 try:
                     driver.execute_script(f"global.page({page});")
-                    time.sleep(2)
+                    time.sleep(random.uniform(2, 4))
                 except: break
             
             items = driver.find_elements(By.CSS_SELECTOR, "li:has(div.cont_box)")

@@ -6,6 +6,8 @@ import json
 import re
 import urllib3
 import traceback 
+import random
+from fake_useragent import UserAgent
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from dotenv import load_dotenv
@@ -24,17 +26,19 @@ MONITOR_WEBHOOK_URL = os.environ.get("MONITOR_WEBHOOK_URL")
 URL = "https://library.cnu.ac.kr/bbs/list/1"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "..", "data", "library_data.json")
-
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Connection': 'keep-alive',
-    'Referer': 'https://library.cnu.ac.kr/',
-    'Upgrade-Insecure-Requests': '1'
-}
 # ==========================================
+
+# ===[랜덤 헤더 생성기]===
+def get_random_headers():
+    ua = UserAgent()
+    return {
+        'User-Agent': ua.random, # 매번 랜덤한 브라우저인 척
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Referer': 'https://library.cnu.ac.kr/',
+        'Upgrade-Insecure-Requests': '1'
+    }
 
 # ===[세션 생성기]===
 def get_session():
@@ -124,7 +128,14 @@ def check_library_notices():
 
         # 2. 웹페이지 접속
         session = get_session()
-        response = session.get(URL, headers=HEADERS, verify=False, timeout=30)  # 여기 30초로 변경
+        sleep_time = random.uniform(2, 5)
+        print(f"⏳ 도서관 접속 전 {sleep_time:.1f}초 대기...")
+        time.sleep(sleep_time)
+        
+        # 랜덤 헤더 생성해서 넣기
+        current_headers = get_random_headers()
+        response = session.get(URL, headers=current_headers, verify=False, timeout=30)
+        
         response.encoding = 'utf-8'
 
         # 3. HTML 파싱

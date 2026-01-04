@@ -6,6 +6,7 @@ import json
 import re
 import urllib3
 import traceback
+import random
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from dotenv import load_dotenv
@@ -129,6 +130,9 @@ def check_board(session, board_info, saved_data):
     print(f"● [{board_name}] 분석 중...")
 
     try:
+        sleep_time = random.uniform(3, 6) 
+        time.sleep(sleep_time)
+        
         # verify=False 대신 impersonate="chrome120" 사용
         # 진짜 크롬 브라우저인 척(TLS Fingerprint 위장) 접속
         response = session.get(url, headers=HEADERS, timeout=30, impersonate="chrome120")

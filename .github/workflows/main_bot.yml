@@ -46,8 +46,8 @@ jobs:
           dorm_WEBHOOK_URL: ${{ secrets.dorm_WEBHOOK_URL }}
           
         run: |
-          # echo "🏫 학과 공지 확인 중..."
-          # python src/cse_bot.py
+          echo "🏫 학과 공지 확인 중..."
+          python src/cse_bot.py
           
           echo "📚 도서관 공지 확인 중..."
           python src/library_bot.py

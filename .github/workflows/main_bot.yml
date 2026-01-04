@@ -1,7 +1,7 @@
 name: CNU General Bots
 
 on:
-  push:
+  # push: #(잦은 action 방지)
   schedule:
     # 한국 시간: 09, 12, 15, 18, 21시 실행
     - cron: '0 0,3,6,9,12 * * *'
@@ -46,14 +46,14 @@ jobs:
           dorm_WEBHOOK_URL: ${{ secrets.dorm_WEBHOOK_URL }}
           
         run: |
-          echo "🏫 학과 공지 확인 중..."
-          python src/cse_bot.py
-          
           echo "📚 도서관 공지 확인 중..."
           python src/library_bot.py
           
           echo "🛌 기숙사 공지 확인 중..."
           python src/dorm_bot.py
+
+          echo "🏫 학과 공지 확인 중..."
+          python src/cse_bot.py
 
       - name: 데이터 변경사항 저장하기 (data 폴더 내 JSON)
         run: |

@@ -101,6 +101,7 @@ def send_simple_error_log(error_msg=None, is_fatal=False):
 # 게시판 검사 로직
 def check_board(session, board_info, saved_data):
     board_id = board_info["id"]
+    board_space = board_space["space"]
     board_name = board_info["name"]
     url = board_info["url"]
 
